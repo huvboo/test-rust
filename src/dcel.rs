@@ -208,6 +208,7 @@ impl BBox3 {
 
 #[derive(Debug, Clone)]
 pub struct MeshCoverage {
+    pub id: String,
     pub node_map: HashMap<u32, Node>,
     pub face_map: HashMap<u32, Face>,
     pub half_edge_map: HashMap<u32, HalfEdge>,
@@ -216,8 +217,9 @@ pub struct MeshCoverage {
 }
 
 impl MeshCoverage {
-    pub fn new() -> Self {
+    pub fn new(id: String) -> Self {
         Self {
+            id,
             node_map: HashMap::new(),
             face_map: HashMap::new(),
             half_edge_map: HashMap::new(),
@@ -256,18 +258,21 @@ impl MeshCoverage {
             self.node_face_adj.bind(n3, new_id);
         }
 
-        // 创建半边
-        self.create_face_half_edges(
-            n0.clone(),
-            n1.clone(),
-            n2.clone(),
-            n3.clone(),
-            new_id.clone(),
-        );
-
         let new_face = Face::new(n0, n1, n2, n3);
         self.face_map.insert(new_id, new_face);
         new_id
+    }
+
+    pub fn generate_half_edges(&mut self) {
+        for (id, face) in &mut self.face_map {
+            let n0 = face.n0.clone();
+            let n1 = face.n1.clone();
+            let n2 = face.n2.clone();
+            let n3 = face.n3.clone();
+            let id = id.clone();
+            // 创建半边
+            // self.create_face_half_edges(n0, n1, n2, n3, id);
+        }
     }
 
     pub fn create_face_half_edges(&mut self, n0: u32, n1: u32, n2: u32, n3: u32, face_id: u32) {
@@ -412,16 +417,37 @@ impl MeshCoverage {
 
     pub fn generate_half_edge_buffer(&self) -> Vec<u32> {
         let mut indexes: Vec<u32> = Vec::new();
-        for (&id, _face) in &self.face_map {
-            if let Some(half_edge_set) = self.face_half_edge_adj.get_face_adj_half_edges(id) {
-                for half_edge_id in &*half_edge_set {
-                    if let Some(&half_edge) = self.half_edge_map.get(&half_edge_id) {
-                        indexes.push(half_edge.start_id);
-                        indexes.push(half_edge.end_id);
-                    }
-                }
+        // for (&id, _face) in &self.face_map {
+        //     if let Some(half_edge_set) = self.face_half_edge_adj.get_face_adj_half_edges(id) {
+        //         for half_edge_id in &*half_edge_set {
+        //             if let Some(&half_edge) = self.half_edge_map.get(&half_edge_id) {
+        //                 indexes.push(half_edge.start_id);
+        //                 indexes.push(half_edge.end_id);
+        //             }
+        //         }
+        //     }
+        // }
+
+        for (&id, face) in &self.face_map {
+            if face.n3 > 0 {
+                indexes.push(face.n0);
+                indexes.push(face.n1);
+                indexes.push(face.n1);
+                indexes.push(face.n2);
+                indexes.push(face.n2);
+                indexes.push(face.n3);
+                indexes.push(face.n3);
+                indexes.push(face.n0);
+            } else {
+                indexes.push(face.n0);
+                indexes.push(face.n1);
+                indexes.push(face.n1);
+                indexes.push(face.n2);
+                indexes.push(face.n2);
+                indexes.push(face.n0);
             }
         }
+
         indexes
     }
 

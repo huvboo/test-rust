@@ -4,13 +4,13 @@ use crate::{
     m4::{multiply, projection, scale, translate, xRotate, yRotate, zRotate},
     render::{create_render_pipeline, uniform4f},
 };
-use std::iter;
+use std::{collections::HashMap, iter};
 
 use cgmath::{
     num_traits::{Float, ToPrimitive},
     Matrix4,
 };
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, CommandEncoder, Device, RenderPass, SurfaceTexture, TextureView};
 use winit::{dpi::PhysicalPosition, event::*, window::Window};
 
 #[repr(C)]
@@ -365,21 +365,132 @@ impl CameraController {
     }
 }
 
+pub struct Layer {
+    pub coverage_id: String,
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub num_indices: u32,
+    pub render_pipeline: wgpu::RenderPipeline,
+    pub color_bind_group: wgpu::BindGroup,
+}
+
+impl Layer {
+    pub fn new(coverage_id: String, state: &mut State) -> Self {
+        let vertex_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: &[],
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let index_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: &[],
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        let num_indices = 0;
+
+        let shader = state
+            .device
+            .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            });
+
+        let color_uniform: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+
+        let (color_bind_group_layout, color_bind_group) = uniform4f(
+            "color",
+            color_uniform,
+            &state.device,
+            wgpu::ShaderStages::FRAGMENT,
+        );
+
+        let render_pipeline = create_render_pipeline(
+            shader,
+            &state.device,
+            &[&color_bind_group_layout, &state.camera_bind_group_layout],
+            &[Vertex::desc()],
+            state.config.format,
+        );
+
+        Self {
+            coverage_id,
+            vertex_buffer,
+            index_buffer,
+            num_indices,
+            render_pipeline,
+            color_bind_group,
+        }
+    }
+
+    pub fn setdata(&mut self, vertices: Vec<Vertex>, indices: Vec<u32>, state: &mut State) {
+        self.vertex_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        self.index_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        self.num_indices = indices.len() as u32;
+    }
+
+    pub fn draw(&self, state: &State, encoder: &mut CommandEncoder, view: &TextureView) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[
+                // 这就是片元着色器中 [[location(0)]] 对应的目标
+                wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                },
+            ],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.color_bind_group, &[]);
+        render_pass.set_bind_group(1, &state.camera_bind_group, &[]);
+
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        // render_pass.draw(0..4, 0..1);
+    }
+}
+
 pub struct State {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
-    pub render_pipeline: wgpu::RenderPipeline,
-    pub coverage: MeshCoverage,
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub num_indices: u32,
+    pub coverages: HashMap<String, MeshCoverage>,
+    pub layers: Vec<Layer>,
     pub scene: Scene,
     pub camera_buffer: wgpu::Buffer,
+    pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub camera_bind_group: wgpu::BindGroup,
-    pub color_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -421,11 +532,6 @@ impl State {
 
         surface.configure(&device, &config);
 
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-
         let scene = Scene::new(size.width as f64, size.height as f64);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -458,35 +564,8 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
-        let color_uniform: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-
-        let (color_bind_group_layout, color_bind_group) = uniform4f(
-            "color",
-            color_uniform,
-            &device,
-            wgpu::ShaderStages::FRAGMENT,
-        );
-
-        let render_pipeline = create_render_pipeline(
-            shader,
-            &device,
-            &[&color_bind_group_layout, &camera_bind_group_layout],
-            &[Vertex::desc()],
-            config.format,
-        );
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: &[],
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: &[],
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = 0;
-        let coverage = MeshCoverage::new();
+        let coverages: HashMap<String, MeshCoverage> = HashMap::new();
+        let layers: Vec<Layer> = Vec::new();
 
         Self {
             surface,
@@ -494,35 +573,13 @@ impl State {
             queue,
             config,
             size,
-            render_pipeline,
-            coverage,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
+            coverages,
+            layers,
             scene,
             camera_buffer,
+            camera_bind_group_layout,
             camera_bind_group,
-            color_bind_group,
         }
-    }
-
-    pub fn setdata(&mut self, vertices: Vec<Vertex>, indices: Vec<u32>) {
-        self.vertex_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-        self.index_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-        self.num_indices = indices.len() as u32;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -549,7 +606,7 @@ impl State {
         );
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -582,21 +639,33 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.color_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            for layer in &self.layers {
+                render_pass.set_pipeline(&layer.render_pipeline);
+                render_pass.set_bind_group(0, &layer.color_bind_group, &[]);
+                render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(0, layer.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(layer.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-            // render_pass.draw(0..4, 0..1);
+                render_pass.draw_indexed(0..layer.num_indices, 0, 0..1);
+                // render_pass.draw(0..4, 0..1);
+            }
         }
 
         // submit 方法能传入任何实现了 IntoIter 的参数
         self.queue.submit(iter::once(encoder.finish()));
+
         output.present();
 
         Ok(())
+    }
+
+    pub fn add_coverage(&mut self, coverage: MeshCoverage) {
+        self.coverages.insert(coverage.id.clone(), coverage);
+    }
+
+    pub fn add_layer(&mut self, layer: Layer) {
+        self.layers.push(layer);
     }
 }
