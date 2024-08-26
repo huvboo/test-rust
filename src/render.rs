@@ -1,5 +1,8 @@
 use wgpu::{
-    util::DeviceExt, BindGroup, BindGroupLayout, RenderPipeline, TextureFormat, VertexBufferLayout,
+    util::DeviceExt, BindGroup, BindGroupLayout, BlendComponent, BlendState, ColorTargetState,
+    ColorWrites, Face, FragmentState, FrontFace, MultisampleState, PipelineCompilationOptions,
+    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor,
+    TextureFormat, VertexBufferLayout, VertexState,
 };
 
 pub fn uniform4f(
@@ -52,46 +55,49 @@ pub fn create_render_pipeline(
         push_constant_ranges: &[],
     });
 
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
+        vertex: VertexState {
             module: &shader,
             entry_point: "vs_main",
             buffers,
+            compilation_options: PipelineCompilationOptions::default(),
         },
-        fragment: Some(wgpu::FragmentState {
+        fragment: Some(FragmentState {
             module: &shader,
             entry_point: "fs_main",
-            targets: &[wgpu::ColorTargetState {
+            targets: &[Some(ColorTargetState {
                 format,
-                blend: Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent::REPLACE,
-                    alpha: wgpu::BlendComponent::REPLACE,
+                blend: Some(BlendState {
+                    color: BlendComponent::REPLACE,
+                    alpha: BlendComponent::REPLACE,
                 }),
-                write_mask: wgpu::ColorWrites::ALL,
-            }],
+                write_mask: ColorWrites::ALL,
+            })],
+            compilation_options: PipelineCompilationOptions::default(),
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::LineList,
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::LineList,
             strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
+            front_face: FrontFace::Ccw,
+            cull_mode: Some(Face::Back),
             // 如果将该字段设置为除了 Fill 之外的任何职值， 都
             // 需要 Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill,
+            polygon_mode: PolygonMode::Fill,
             // 需要 Features::DEPTH_CLIP_ENABLE
             unclipped_depth: false,
             // 需要 Features::CONSERVATILE_RASTERIZATION
             conservative: false,
         },
         depth_stencil: None,
-        multisample: wgpu::MultisampleState {
+        multisample: MultisampleState {
             count: 1,
             mask: !0,
             alpha_to_coverage_enabled: false,
         },
         multiview: None,
+        cache: None,
     });
 
     render_pipeline

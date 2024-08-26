@@ -125,7 +125,7 @@ pub fn inverse(a: [f64; 16]) -> [f64; 16] {
     let b11 = a22 * a33 - a23 * a32;
     // Calculate the determinant
     let mut det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-    if (det == 0.0) {
+    if det == 0.0 {
         return projection(2.0, 2.0, -1.0);
     }
     det = 1.0 / det;
@@ -155,27 +155,27 @@ pub fn translation(tx: f64, ty: f64, tz: f64) -> [f64; 16] {
     ];
 }
 
-pub fn xRotation(angleInRadians: f64) -> [f64; 16] {
-    let c = angleInRadians.cos();
-    let s = angleInRadians.sin();
+pub fn x_rotation(angle_in_radians: f64) -> [f64; 16] {
+    let c = angle_in_radians.cos();
+    let s = angle_in_radians.sin();
 
     return [
         1.0, 0.0, 0.0, 0.0, 0.0, c, s, 0.0, 0.0, -s, c, 0.0, 0.0, 0.0, 0.0, 1.0,
     ];
 }
 
-pub fn yRotation(angleInRadians: f64) -> [f64; 16] {
-    let c = angleInRadians.cos();
-    let s = angleInRadians.sin();
+pub fn y_rotation(angle_in_radians: f64) -> [f64; 16] {
+    let c = angle_in_radians.cos();
+    let s = angle_in_radians.sin();
 
     return [
         c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, 0.0, 0.0, 0.0, 1.0,
     ];
 }
 
-pub fn zRotation(angleInRadians: f64) -> [f64; 16] {
-    let c = angleInRadians.cos();
-    let s = angleInRadians.sin();
+pub fn z_rotation(angle_in_radians: f64) -> [f64; 16] {
+    let c = angle_in_radians.cos();
+    let s = angle_in_radians.sin();
 
     return [
         c, s, 0.0, 0.0, -s, c, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -192,16 +192,16 @@ pub fn translate(m: [f64; 16], tx: f64, ty: f64, tz: f64) -> [f64; 16] {
     return multiply(m, translation(tx, ty, tz));
 }
 
-pub fn xRotate(m: [f64; 16], angleInRadians: f64) -> [f64; 16] {
-    return multiply(m, xRotation(angleInRadians));
+pub fn x_rotate(m: [f64; 16], angle_in_radians: f64) -> [f64; 16] {
+    return multiply(m, x_rotation(angle_in_radians));
 }
 
-pub fn yRotate(m: [f64; 16], angleInRadians: f64) -> [f64; 16] {
-    return multiply(m, yRotation(angleInRadians));
+pub fn y_rotate(m: [f64; 16], angle_in_radians: f64) -> [f64; 16] {
+    return multiply(m, y_rotation(angle_in_radians));
 }
 
-pub fn zRotate(m: [f64; 16], angleInRadians: f64) -> [f64; 16] {
-    return multiply(m, zRotation(angleInRadians));
+pub fn z_rotate(m: [f64; 16], angle_in_radians: f64) -> [f64; 16] {
+    return multiply(m, z_rotation(angle_in_radians));
 }
 
 pub fn scale(m: [f64; 16], sx: f64, sy: f64, sz: f64) -> [f64; 16] {

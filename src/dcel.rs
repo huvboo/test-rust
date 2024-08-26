@@ -428,7 +428,7 @@ impl MeshCoverage {
         //     }
         // }
 
-        for (&id, face) in &self.face_map {
+        for (&_id, face) in &self.face_map {
             if face.n3 > 0 {
                 indexes.push(face.n0);
                 indexes.push(face.n1);
@@ -453,7 +453,7 @@ impl MeshCoverage {
 
     pub fn generate_face_buffer(&self) -> Vec<u32> {
         let mut indexes: Vec<u32> = Vec::new();
-        for (&id, face) in &self.face_map {
+        for (&_id, face) in &self.face_map {
             if face.n3 > 0 {
                 indexes.push(face.n0);
                 indexes.push(face.n1);
