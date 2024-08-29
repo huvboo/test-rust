@@ -119,7 +119,7 @@ impl Scene {
         self.translate(dx, dy);
     }
 
-    fn scale(&mut self, times: f64) {
+    pub fn scale(&mut self, times: f64) {
         let multiplier = 1.25.powf(times);
         // println!("{:?}", multiplier);
         self._zoom = self.zoom;
@@ -128,7 +128,7 @@ impl Scene {
             .max(self.min_zoom);
     }
 
-    fn translate(&mut self, tx: f64, ty: f64) {
+    pub fn translate(&mut self, tx: f64, ty: f64) {
         self.tx = self.tx + tx / self.zoom;
         self.ty = self.ty + ty / self.zoom;
     }

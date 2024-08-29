@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use wgpu::{Adapter, Device, Features, Limits, MemoryHints, Queue, Surface, SurfaceConfiguration};
+use wgpu::{
+    Adapter, Device, Features, Instance, Limits, MemoryHints, Queue, Surface, SurfaceConfiguration,
+};
 use winit::{dpi::PhysicalSize, window::Window};
 
 pub struct WgpuCtx<'window> {
@@ -12,13 +14,12 @@ pub struct WgpuCtx<'window> {
 }
 
 impl<'window> WgpuCtx<'window> {
-    pub async fn new_async(window: Arc<Window>) -> Self {
-        // 创建 wgpu::Instance
-        let instance = wgpu::Instance::default();
-
-        // 从窗口创建 Surface
-        let surface = instance.create_surface(window.clone()).unwrap();
-
+    pub async fn new_async(
+        instance: Instance,
+        surface: Surface<'window>,
+        width: u32,
+        height: u32,
+    ) -> Self {
         // 获取适配器
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptionsBase {
@@ -43,11 +44,6 @@ impl<'window> WgpuCtx<'window> {
             )
             .await
             .expect("Failed to create device");
-
-        let mut size = window.clone().inner_size();
-
-        let width = size.width.max(1);
-        let height = size.height.max(1);
 
         let surface_config = surface.get_default_config(&adapter, width, height).unwrap();
 
@@ -75,8 +71,8 @@ impl<'window> WgpuCtx<'window> {
         // surface.configure(&device, &config);
     }
 
-    pub fn new(window: Arc<Window>) -> Self {
-        pollster::block_on(WgpuCtx::new_async(window))
+    pub fn new(instance: Instance, surface: Surface<'window>, width: u32, height: u32) -> Self {
+        pollster::block_on(WgpuCtx::new_async(instance, surface, width, height))
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
