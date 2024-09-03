@@ -1,4 +1,4 @@
-use std::{any::Any, time::Duration};
+use std::{any::Any, sync::Arc, time::Duration};
 
 use crossbeam_channel::{Receiver, Sender};
 
@@ -28,7 +28,7 @@ impl DynamicMessage {
 }
 
 pub fn send_message<T: Any + Send + 'static>(
-    tx: Sender<DynamicMessage>,
+    tx: Arc<Sender<DynamicMessage>>,
     message_id: MessageId,
     data: T,
 ) {
@@ -45,6 +45,8 @@ pub enum MessageId {
     Escape,
     Resized,
     RedrawRequested,
+    CloseRequested,
+    CreateChildWindow,
 }
 
 // impl<T: fmt::Display> fmt::Display for Message<T> {

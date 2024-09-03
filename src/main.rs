@@ -8,6 +8,7 @@ pub mod scene;
 pub mod service;
 pub mod state;
 pub mod wgpu_ctx;
+pub mod win_ctx;
 
 use app::App;
 use winit::event_loop::EventLoop;
